@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ピックルボール スコアボード</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* タッチ時の選択・ダブルタップズーム防止 */
+    body {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    
+    /* スコア数字のスタイリング */
+    .score-font {
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+    }
+
+    /* アニメーション */
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(0.98); }
+    }
+    .serving-active {
+      animation: pulse-subtle 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col justify-between overflow-hidden text-slate-100 select-none">
+
+  <!-- ================= HEADER / CONTROL BAR ================= -->
+  <header class="bg-slate-900 border-b border-slate-800 px-3 py-2 flex justify-between items-center z-20 shrink-0">
+    <div class="flex items-center space-x-2">
+      <!-- 審判 ↔ 表示 モード切替ボタン (表示モード時もアクティブ) -->
+      <button id="toggle-mode-btn" onclick="toggleDisplayMode()" class="px-3 py-1.5 rounded-lg font-bold text-sm bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-slate-950 flex items-center shadow-lg transition-all">
+        <i class="fa-solid font-black mr-1.5 text-base" id="mode-icon"></i>
+        <span id="mode-text">表示モードへ</span>
+      </button>
+
+      <!-- 設定・操作ボタン（審判モード時のみ有効） -->
+      <div id="referee-controls-left" class="flex items-center space-x-1">
+        <button onclick="undoLastAction()" id="undo-btn" class="px-2.5 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-700 flex items-center" title="1手戻す">
+          <i class="fa-solid fa-rotate-left mr-1"></i> 戻す
+        </button>
+        <button onclick="openSettingsModal()" class="px-2.5 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center">
+          <i class="fa-solid fa-gear mr-1"></i> 設定
+        </button>
+      </div>
+    </div>
+
+    <!-- アナウンス / タイマー設定 -->
+    <div id="referee-controls-right" class="flex items-center space-x-2">
+      <button id="speech-btn" onclick="toggleSpeech()" class="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-amber-400 border border-slate-700 text-xs flex items-center">
+        <i class="fa-solid fa-volume-high text-sm"></i>
+      </button>
+      <button onclick="resetGameWithConfirm()" class="px-2 py-1.5 rounded-lg text-xs bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800/60 flex items-center">
+        <i class="fa-solid fa-arrow-rotate-right mr-1"></i> リセット
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= MAIN SCOREBOARD CONTENT ================= -->
+  <!-- 表示モード時には全域がオーバーレイによってタップ無効化される (ヘッダーの切替ボタンを除く) -->
+  <main class="relative flex-1 flex flex-col lg:flex-row p-2 gap-2 h-full overflow-hidden">
+    
+    <!-- タップ無効化用オーバーレイ（表示モード用） -->
+    <div id="lock-overlay" class="hidden absolute inset-0 z-10 bg-transparent"></div>
+
+    <!-- チーム A (LEFT / TOP) -->
+    <section id="team-a-card" class="flex-1 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-900/80 border-2 border-cyan-500/30 flex flex-col justify-between p-3 relative overflow-hidden transition-all">
+      <!-- チーム名 & サーブ権インジケーター -->
+      <div class="flex justify-between items-center border-b border-slate-800/80 pb-2 z-0">
+        <div class="flex items-center gap-2">
+          <span class="w-3 h-3 rounded-full bg-cyan-400"></span>
+          <input type="text" id="team-a-name" value="チーム A" onchange="updateTeamNames()" class="bg-transparent font-bold text-lg md:text-xl text-cyan-400 focus:outline-none border-b border-transparent focus:border-cyan-400 px-1 w-28 md:w-40">
+        </div>
+        <!-- タイムアウトボタン -->
+        <button id="timeout-a-btn" onclick="triggerTimeout('A')" class="referee-only px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs border border-slate-700 flex items-center gap-1 hover:bg-slate-700">
+          <i class="fa-solid fa-stopwatch"></i> TO (<span id="timeout-a-count">2</span>)
+        </button>
+      </div>
+
+      <!-- スコア表示部 -->
+      <div class="flex-1 flex flex-col justify-center items-center my-1">
+        <div id="team-a-score" class="score-font text-7xl sm:text-8xl md:text-9xl text-cyan-400 leading-none drop-shadow-[0_0_15px_rgba(34,211,238,0.2)]">
+          0
+        </div>
+        <!-- サーバー番号／コール表示 -->
+        <div id="team-a-server-badge" class="mt-2 px-4 py-1 rounded-full text-xs sm:text-sm font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40 flex items-center gap-1.5">
+          <i class="fa-solid fa-table-tennis-paddle-ball text-cyan-400"></i>
+          <span id="team-a-server-text">待機中</span>
+        </div>
+      </div>
+
+      <!-- 操作ボタン領域 (審判モードのみ表示) -->
+      <div class="referee-only grid grid-cols-2 gap-2 mt-1 z-0">
+        <button onclick="addPoint('A')" class="py-3 sm:py-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-slate-950 font-black text-lg shadow-lg flex flex-col items-center justify-center">
+          <span>+1 ポイント</span>
+          <span class="text-[10px] font-normal opacity-80">(得点獲得)</span>
+        </button>
+        <button onclick="handleFault('A')" class="py-3 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-rose-400 font-bold text-sm border border-slate-700 flex flex-col items-center justify-center">
+          <span>ミス / エラー</span>
+          <span class="text-[10px] font-normal text-slate-400">(サーブ交代/失敗)</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- センター情報 & コート表示（ダブルス用サーバー位置） -->
+    <section class="shrink-0 flex lg:flex-col justify-between items-center bg-slate-900/90 rounded-xl p-2 border border-slate-800 gap-2">
+      <!-- サービス状態メッセージ -->
+      <div class="text-center flex-1 lg:flex-none">
+        <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold">コール</div>
+        <div id="call-display" class="text-xl sm:text-2xl font-black text-amber-400 tracking-wider my-0.5">
+          0 - 0 - 2
+        </div>
+        <div id="serving-team-label" class="text-xs text-slate-300 font-medium">
+          チーム A サーブ
+        </div>
+      </div>
+
+      <!-- ピックルボール コートビジュアル (サーバー位置の可視化) -->
+      <div id="court-diagram" class="w-32 h-20 sm:w-40 sm:h-24 bg-slate-950 border border-slate-700 rounded relative flex flex-col shrink-0 overflow-hidden my-auto">
+        <!-- ネット -->
+        <div class="absolute inset-x-0 top-1/2 h-0.5 bg-slate-400 z-10 -translate-y-1/2"></div>
+        <!-- ノンボレーゾーン (キッチン) -->
+        <div class="absolute inset-x-0 top-[35%] bottom-[35%] bg-amber-500/10 border-y border-amber-500/30"></div>
+        
+        <!-- 上コート (チーム A) -->
+        <div class="flex-1 grid grid-cols-2 border-b border-slate-800">
+          <div id="court-a-left" class="border-r border-slate-800/50 flex items-center justify-center text-[10px] text-slate-600">L</div>
+          <div id="court-a-right" class="flex items-center justify-center text-[10px] text-slate-600">R</div>
+        </div>
+        <!-- 下コート (チーム B) -->
+        <div class="flex-1 grid grid-cols-2">
+          <div id="court-b-left" class="border-r border-slate-800/50 flex items-center justify-center text-[10px] text-slate-600">L</div>
+          <div id="court-b-right" class="flex items-center justify-center text-[10px] text-slate-600">R</div>
+        </div>
+      </div>
+
+      <!-- クイックチェンジボタン (審判モードのみ) -->
+      <div class="referee-only flex lg:flex-col gap-1">
+        <button onclick="switchServerManual()" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700" title="1st/2nd手動切替">
+          <i class="fa-solid fa-arrows-rotate mr-1"></i> 1st/2nd
+        </button>
+        <button onclick="swapSides()" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700" title="コート交代">
+          <i class="fa-solid fa-right-left mr-1"></i> コートチェンジ
+        </button>
+      </div>
+    </section>
+
+    <!-- チーム B (RIGHT / BOTTOM) -->
+    <section id="team-b-card" class="flex-1 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-900/80 border-2 border-amber-500/30 flex flex-col justify-between p-3 relative overflow-hidden transition-all">
+      <!-- チーム名 & サーブ権インジケーター -->
+      <div class="flex justify-between items-center border-b border-slate-800/80 pb-2 z-0">
+        <div class="flex items-center gap-2">
+          <span class="w-3 h-3 rounded-full bg-amber-400"></span>
+          <input type="text" id="team-b-name" value="チーム B" onchange="updateTeamNames()" class="bg-transparent font-bold text-lg md:text-xl text-amber-400 focus:outline-none border-b border-transparent focus:border-amber-400 px-1 w-28 md:w-40">
+        </div>
+        <!-- タイムアウトボタン -->
+        <button id="timeout-b-btn" onclick="triggerTimeout('B')" class="referee-only px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs border border-slate-700 flex items-center gap-1 hover:bg-slate-700">
+          <i class="fa-solid fa-stopwatch"></i> TO (<span id="timeout-b-count">2</span>)
+        </button>
+      </div>
+
+      <!-- スコア表示部 -->
+      <div class="flex-1 flex flex-col justify-center items-center my-1">
+        <div id="team-b-score" class="score-font text-7xl sm:text-8xl md:text-9xl text-amber-400 leading-none drop-shadow-[0_0_15px_rgba(251,191,36,0.2)]">
+          0
+        </div>
+        <!-- サーバー番号／コール表示 -->
+        <div id="team-b-server-badge" class="mt-2 px-4 py-1 rounded-full text-xs sm:text-sm font-bold bg-amber-950 text-amber-300 border border-amber-500/40 flex items-center gap-1.5">
+          <i class="fa-solid fa-table-tennis-paddle-ball text-amber-400"></i>
+          <span id="team-b-server-text">待機中</span>
+        </div>
+      </div>
+
+      <!-- 操作ボタン領域 (審判モードのみ表示) -->
+      <div class="referee-only grid grid-cols-2 gap-2 mt-1 z-0">
+        <button onclick="addPoint('B')" class="py-3 sm:py-4 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-black text-lg shadow-lg flex flex-col items-center justify-center">
+          <span>+1 ポイント</span>
+          <span class="text-[10px] font-normal opacity-80">(得点獲得)</span>
+        </button>
+        <button onclick="handleFault('B')" class="py-3 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-rose-400 font-bold text-sm border border-slate-700 flex flex-col items-center justify-center">
+          <span>ミス / エラー</span>
+          <span class="text-[10px] font-normal text-slate-400">(サーブ交代/失敗)</span>
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= MODALS & OVERLAYS ================= -->
+
+  <!-- 1. 試合勝利・ダイアログ Modal -->
+  <div id="winner-modal" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border-2 border-emerald-500 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl">
+      <div class="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+        <i class="fa-solid fa-trophy"></i>
+      </div>
+      <h2 id="winner-title" class="text-2xl font-black text-slate-100 mb-1">GAME SET!</h2>
+      <p id="winner-text" class="text-emerald-400 font-bold text-lg mb-4">チーム A の勝利！</p>
+      <div id="winner-score-summary" class="text-3xl font-extrabold text-slate-300 mb-6 score-font">
+        11 - 9
+      </div>
+      <div class="flex gap-2">
+        <button onclick="undoLastAction(); closeModal('winner-modal');" class="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-bold text-sm">
+          最後の手を取り消す
+        </button>
+        <button onclick="resetGame(); closeModal('winner-modal');" class="flex-1 py-2.5 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-bold text-sm">
+          次のゲームへ
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. タイムアウトタイマー Modal -->
+  <div id="timeout-modal" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-xs w-full text-center shadow-2xl">
+      <h3 class="text-lg font-bold text-slate-300 mb-1">タイムアウト中</h3>
+      <p id="timeout-team-name" class="text-amber-400 font-bold text-sm mb-4">チーム A</p>
+      <div id="timeout-timer" class="text-6xl font-black text-slate-100 score-font my-4">60</div>
+      <button onclick="closeTimeoutModal()" class="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm">
+        タイマーを終了
+      </button>
+    </div>
+  </div>
+
+  <!-- 3. 設定 Modal -->
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 max-w-sm w-full shadow-2xl">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-800 mb-4">
+        <h3 class="font-bold text-lg text-slate-100"><i class="fa-solid fa-sliders mr-2"></i>ゲーム設定</h3>
+        <button onclick="closeModal('settings-modal')" class="text-slate-400 hover:text-slate-100 p-1">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-sm">
+        <!-- 種目モード -->
+        <div>
+          <label class="block text-xs font-bold text-slate-400 mb-1.5">種目</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button id="opt-doubles" onclick="setGameType('doubles')" class="py-2 rounded-lg font-bold border text-center transition-all">ダブルス</button>
+            <button id="opt-singles" onclick="setGameType('singles')" class="py-2 rounded-lg font-bold border text-center transition-all">シングルス</button>
+          </div>
+        </div>
+
+        <!-- 勝利上限点数 -->
+        <div>
+          <label class="block text-xs font-bold text-slate-400 mb-1.5">目標ポイント (マッチポイント)</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button onclick="setTargetScore(11)" id="target-11" class="target-score-btn py-1.5 rounded-lg border font-bold">11点</button>
+            <button onclick="setTargetScore(15)" id="target-15" class="target-score-btn py-1.5 rounded-lg border font-bold">15点</button>
+            <button onclick="setTargetScore(21)" id="target-21" class="target-score-btn py-1.5 rounded-lg border font-bold">21点</button>
+          </div>
+        </div>
+
+        <!-- 2点差勝利ルール -->
+        <div class="flex justify-between items-center py-1">
+          <span class="font-medium text-slate-300">デュース (2点差で勝利)</span>
+          <input type="checkbox" id="win-by-two" checked onchange="toggleWinByTwo()" class="w-5 h-5 accent-emerald-500 rounded cursor-pointer">
+        </div>
+
+        <!-- 読み上げ機能 -->
+        <div class="flex justify-between items-center py-1">
+          <span class="font-medium text-slate-300">自動音声アナウンス</span>
+          <input type="checkbox" id="speech-enable" onchange="toggleSpeechFromCheck()" class="w-5 h-5 accent-emerald-500 rounded cursor-pointer">
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <button onclick="closeModal('settings-modal')" class="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold">
+          完了
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= JAVASCRIPT LOGIC ================= -->
+  <script>
+    /* ================= APP STATE ================= */
+    let state = {
+      isDoubles: true,          // true: ダブルス, false: シングルス
+      targetScore: 11,          // 勝利ポイント
+      winByTwo: true,           // 2点差勝利ルール
+      
+      scoreA: 0,
+      scoreB: 0,
+      
+      // サーブ権状態
+      servingTeam: 'A',         // 'A' または 'B'
+      serverNumber: 2,          // ダブルス: 1 または 2 (ゲーム開始時はルール上 "0-0-2" でスタート)
+      
+      // コート位置 (各チーム内でどちらのプレイヤーがサーブを打つか)
+      // 偶数ポイント=右(R), 奇数ポイント=左(L)
+      
+      timeoutsA: 2,
+      timeoutsB: 2,
+      
+      isDisplayMode: false,     // false: 審判モード, true: 表示モード (ロック)
+      isSpeechEnabled: false,
+      gameEnded: false
+    };
+
+    // 履歴スタック（1手戻す機能用）
+    let historyStack = [];
+
+    // タイムアウトタイマー関連
+    let timeoutTimerInterval = null;
+
+    /* ================= INITIALIZATION ================= */
+    window.onload = () => {
+      saveStateToHistory();
+      updateUI();
+      requestWakeLock();
+    };
+
+    /* ================= CORE PICKLEBALL LOGIC ================= */
+
+    /**
+     * ポイント獲得処理
+     * @param {string} team - 'A' または 'B'
+     */
+    function addPoint(team) {
+      if (state.gameEnded) return;
+      saveStateToHistory();
+      vibrate();
+
+      if (state.servingTeam === team) {
+        // サーブ側がラリーに勝利した場合のみ得点が入る
+        if (team === 'A') {
+          state.scoreA++;
+        } else {
+          state.scoreB++;
+        }
+
+        // 音声コール
+        speakCurrentCall();
+
+        // 勝利判定
+        checkWinner();
+      } else {
+        // レシーブ側がラリーに勝利した場合 -> サーブ失敗/交代 (サイドアウトまたはサーバー交代)
+        handleFaultInternal(team === 'A' ? 'B' : 'A');
+      }
+
+      updateUI();
+    }
+
+    /**
+     * サーブミス・エラー発生時の処理
+     * @param {string} faultingTeam - ミスをしたチーム ('A' または 'B')
+     */
+    function handleFault(faultingTeam) {
+      if (state.gameEnded) return;
+      saveStateToHistory();
+      vibrate([50, 50]);
+
+      // 現在サーブ権を持っているチームのエラー時のみ進行
+      if (state.servingTeam === faultingTeam) {
+        handleFaultInternal(faultingTeam);
+      }
+      updateUI();
+    }
+
+    /**
+     * サーブ交代・サイドアウト内部ロジック
+     */
+    function handleFaultInternal(faultingTeam) {
+      if (state.isDoubles) {
+        if (state.serverNumber === 1) {
+          // 1stサーバー失敗 -> 2ndサーバーへ移行
+          state.serverNumber = 2;
+          speakCurrentCall();
+        } else {
+          // 2ndサーバー失敗 -> サービスオーバー（サイドアウト）で相手チームへ
+          state.servingTeam = faultingTeam === 'A' ? 'B' : 'A';
+          state.serverNumber = 1;
+          speakCurrentCall("サイドアウト");
+        }
+      } else {
+        // シングルス: エラーで即サイドアウト
+        state.servingTeam = faultingTeam === 'A' ? 'B' : 'A';
+        speakCurrentCall("サイドアウト");
+      }
+    }
+
+    /**
+     * 勝利条件の判定
+     */
+    function checkWinner() {
+      const { scoreA, scoreB, targetScore, winByTwo } = state;
+      let winner = null;
+
+      if (scoreA >= targetScore) {
+        if (!winByTwo || (scoreA - scoreB >= 2)) {
+          winner = document.getElementById('team-a-name').value || 'チーム A';
+        }
+      } else if (scoreB >= targetScore) {
+        if (!winByTwo || (scoreB - scoreA >= 2)) {
+          winner = document.getElementById('team-b-name').value || 'チーム B';
+        }
+      }
+
+      if (winner) {
+        state.gameEnded = true;
+        document.getElementById('winner-title').innerText = "GAME SET!";
+        document.getElementById('winner-text').innerText = `${winner} の勝利！`;
+        document.getElementById('winner-score-summary').innerText = `${scoreA} - ${scoreB}`;
+        showModal('winner-modal');
+        speakText(`${winner} の勝利です。`);
+      }
+    }
+
+    /* ================= HISTORY & UNDO ================= */
+
+    function saveStateToHistory() {
+      // ディープコピーして履歴スタックに保存
+      if (historyStack.length >= 20) historyStack.shift(); // 最大20履歴
+      historyStack.push(JSON.stringify(state));
+      document.getElementById('undo-btn').disabled = false;
+    }
+
+    function undoLastAction() {
+      if (historyStack.length === 0) return;
+      vibrate();
+      const previousState = historyStack.pop();
+      state = JSON.parse(previousState);
+      
+      if (historyStack.length === 0) {
+        document.getElementById('undo-btn').disabled = true;
+      }
+      updateUI();
+    }
+
+    function resetGameWithConfirm() {
+      if (confirm("試合スコアをリセットして初期状態に戻しますか？")) {
+        resetGame();
+      }
+    }
+
+    function resetGame() {
+      saveStateToHistory();
+      state.scoreA = 0;
+      state.scoreB = 0;
+      state.servingTeam = 'A';
+      state.serverNumber = state.isDoubles ? 2 : 1; // ゲーム開始時は 0-0-2
+      state.timeoutsA = 2;
+      state.timeoutsB = 2;
+      state.gameEnded = false;
+      updateUI();
+    }
+
+    /* ================= DISPLAY MODE & LOCKING ================= */
+
+    function toggleDisplayMode() {
+      vibrate();
+      state.isDisplayMode = !state.isDisplayMode;
+      
+      const lockOverlay = document.getElementById('lock-overlay');
+      const refereeControlsLeft = document.getElementById('referee-controls-left');
+      const refereeControlsRight = document.getElementById('referee-controls-right');
+      const refereeOnlyElements = document.querySelectorAll('.referee-only');
+      const modeBtn = document.getElementById('toggle-mode-btn');
+      const modeText = document.getElementById('mode-text');
+      const modeIcon = document.getElementById('mode-icon');
+
+      if (state.isDisplayMode) {
+        // 表示モード：誤操作防止ロックをアクティブ化
+        lockOverlay.classList.remove('hidden');
+        refereeControlsLeft.classList.add('invisible');
+        refereeControlsRight.classList.add('invisible');
+        refereeOnlyElements.forEach(el => el.classList.add('hidden'));
+
+        modeBtn.classList.remove('bg-emerald-500', 'hover:bg-emerald-600', 'text-slate-950');
+        modeBtn.classList.add('bg-amber-500', 'hover:bg-amber-600', 'text-slate-950', 'ring-4', 'ring-amber-500/40');
+        modeText.innerText = "審判モードへ (解除)";
+        modeIcon.className = "fa-solid fa-lock mr-1.5";
+      } else {
+        // 審判モード：コントロール表示
+        lockOverlay.classList.add('hidden');
+        refereeControlsLeft.classList.remove('invisible');
+        refereeControlsRight.classList.remove('invisible');
+        refereeOnlyElements.forEach(el => el.classList.remove('hidden'));
+
+        modeBtn.classList.remove('bg-amber-500', 'hover:bg-amber-600', 'ring-4', 'ring-amber-500/40');
+        modeBtn.classList.add('bg-emerald-500', 'hover:bg-emerald-600', 'text-slate-950');
+        modeText.innerText = "表示モードへ";
+        modeIcon.className = "fa-solid fa-expand mr-1.5";
+      }
+    }
+
+    /* ================= UI UPDATE ENGINE ================= */
+
+    function updateUI() {
+      // スコア数値
+      document.getElementById('team-a-score').innerText = state.scoreA;
+      document.getElementById('team-b-score').innerText = state.scoreB;
+
+      // タイムアウトカウント
+      document.getElementById('timeout-a-count').innerText = state.timeoutsA;
+      document.getElementById('timeout-b-count').innerText = state.timeoutsB;
+
+      // ピックルボール専用のコール文字列生成 (例: 4 - 3 - 1 または 4 - 3)
+      let callStr = "";
+      const isA = state.servingTeam === 'A';
+      const myScore = isA ? state.scoreA : state.scoreB;
+      const oppScore = isA ? state.scoreB : state.scoreA;
+
+      if (state.isDoubles) {
+        callStr = `${myScore} - ${oppScore} - ${state.serverNumber}`;
+      } else {
+        callStr = `${myScore} - ${oppScore}`;
+      }
+      document.getElementById('call-display').innerText = callStr;
+
+      const teamAName = document.getElementById('team-a-name').value || 'チーム A';
+      const teamBName = document.getElementById('team-b-name').value || 'チーム B';
+      document.getElementById('serving-team-label').innerText = `${isA ? teamAName : teamBName} サーブ`;
+
+      // サーバーバッジ表示の更新
+      const badgeA = document.getElementById('team-a-server-badge');
+      const badgeB = document.getElementById('team-b-server-badge');
+      const textA = document.getElementById('team-a-server-text');
+      const textB = document.getElementById('team-b-server-text');
+
+      if (isA) {
+        badgeA.className = "mt-2 px-4 py-1.5 rounded-full text-xs sm:text-sm font-bold bg-cyan-500 text-slate-950 border border-cyan-300 serving-active shadow-[0_0_12px_rgba(34,211,238,0.5)]";
+        textA.innerText = state.isDoubles ? `サーブ (サーバー ${state.serverNumber})` : "サーブ権あり";
+        
+        badgeB.className = "mt-2 px-4 py-1 rounded-full text-xs sm:text-sm font-bold bg-slate-800/80 text-slate-500 border border-slate-700";
+        textB.innerText = "レシーブ";
+      } else {
+        badgeB.className = "mt-2 px-4 py-1.5 rounded-full text-xs sm:text-sm font-bold bg-amber-400 text-slate-950 border border-amber-200 serving-active shadow-[0_0_12px_rgba(251,191,36,0.5)]";
+        textB.innerText = state.isDoubles ? `サーブ (サーバー ${state.serverNumber})` : "サーブ権あり";
+
+        badgeA.className = "mt-2 px-4 py-1 rounded-full text-xs sm:text-sm font-bold bg-slate-800/80 text-slate-500 border border-slate-700";
+        textA.innerText = "レシーブ";
+      }
+
+      // コートダイアグラム（サーバー位置）の更新
+      updateCourtDiagram();
+
+      // 設定ダイアログのボタン状態更新
+      updateSettingsUI();
+    }
+
+    /**
+     * コート上のサーブ位置（右コート/左コート）可視化
+     */
+    function updateCourtDiagram() {
+      // クリア
+      const cells = ['court-a-left', 'court-a-right', 'court-b-left', 'court-b-right'];
+      cells.forEach(id => {
+        const el = document.getElementById(id);
+        el.className = el.className.replace(/bg-.* text-.*/, '') + " text-[10px] text-slate-600";
+        el.innerText = id.endsWith('left') ? 'L' : 'R';
+      });
+
+      const isA = state.servingTeam === 'A';
+      const currentScore = isA ? state.scoreA : state.scoreB;
+      // 偶数点数 = 右(Right)コートからサーブ、奇数点数 = 左(Left)コートからサーブ
+      const isRightCourt = (currentScore % 2 === 0);
+
+      let activeCellId = "";
+      if (isA) {
+        activeCellId = isRightCourt ? 'court-a-right' : 'court-a-left';
+      } else {
+        activeCellId = isRightCourt ? 'court-b-right' : 'court-b-left';
+      }
+
+      const activeEl = document.getElementById(activeCellId);
+      if (activeEl) {
+        activeEl.className += isA ? " bg-cyan-500 text-slate-950 font-black" : " bg-amber-400 text-slate-950 font-black";
+        activeEl.innerText = "SERVE";
+      }
+    }
+
+    function updateSettingsUI() {
+      // 種目
+      const btnDoubles = document.getElementById('opt-doubles');
+      const btnSingles = document.getElementById('opt-singles');
+      if (state.isDoubles) {
+        btnDoubles.className = "py-2 rounded-lg font-bold border border-emerald-500 bg-emerald-500/20 text-emerald-400";
+        btnSingles.className = "py-2 rounded-lg font-bold border border-slate-700 bg-slate-800 text-slate-400";
+      } else {
+        btnSingles.className = "py-2 rounded-lg font-bold border border-emerald-500 bg-emerald-500/20 text-emerald-400";
+        btnDoubles.className = "py-2 rounded-lg font-bold border border-slate-700 bg-slate-800 text-slate-400";
+      }
+
+      // 目標スコア
+      [11, 15, 21].forEach(score => {
+        const btn = document.getElementById(`target-${score}`);
+        if (state.targetScore === score) {
+          btn.className = "target-score-btn py-1.5 rounded-lg border border-emerald-500 bg-emerald-500/20 text-emerald-400 font-bold";
+        } else {
+          btn.className = "target-score-btn py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-400 font-bold";
+        }
+      });
+    }
+
+    /* ================= MANUAL CONTROLS & UTILS ================= */
+
+    function switchServerManual() {
+      if (!state.isDoubles) return;
+      saveStateToHistory();
+      state.serverNumber = state.serverNumber === 1 ? 2 : 1;
+      vibrate();
+      updateUI();
+    }
+
+    function swapSides() {
+      saveStateToHistory();
+      // チームAとチームBのスコアと設定を入れ替え
+      const tempScore = state.scoreA;
+      state.scoreA = state.scoreB;
+      state.scoreB = tempScore;
+
+      const tempTimeouts = state.timeoutsA;
+      state.timeoutsA = state.timeoutsB;
+      state.timeoutsB = tempTimeouts;
+
+      const nameA = document.getElementById('team-a-name').value;
+      const nameB = document.getElementById('team-b-name').value;
+      document.getElementById('team-a-name').value = nameB;
+      document.getElementById('team-b-name').value = nameA;
+
+      state.servingTeam = state.servingTeam === 'A' ? 'B' : 'A';
+
+      vibrate();
+      updateUI();
+    }
+
+    function updateTeamNames() {
+      updateUI();
+    }
+
+    /* ================= TIMEOUT COUNTER ================= */
+
+    function triggerTimeout(team) {
+      if (team === 'A' && state.timeoutsA <= 0) return;
+      if (team === 'B' && state.timeoutsB <= 0) return;
+
+      saveStateToHistory();
+      if (team === 'A') state.timeoutsA--;
+      else state.timeoutsB--;
+
+      const teamName = document.getElementById(team === 'A' ? 'team-a-name' : 'team-b-name').value;
+      document.getElementById('timeout-team-name').innerText = teamName;
+      
+      showModal('timeout-modal');
+      startTimeoutTimer(60);
+      updateUI();
+    }
+
+    function startTimeoutTimer(seconds) {
+      clearInterval(timeoutTimerInterval);
+      let timeLeft = seconds;
+      const display = document.getElementById('timeout-timer');
+      display.innerText = timeLeft;
+
+      timeoutTimerInterval = setInterval(() => {
+        timeLeft--;
+        display.innerText = timeLeft;
+        if (timeLeft <= 0) {
+          clearInterval(timeoutTimerInterval);
+          vibrate([200, 100, 200]);
+        }
+      }, 1000);
+    }
+
+    function closeTimeoutModal() {
+      clearInterval(timeoutTimerInterval);
+      closeModal('timeout-modal');
+    }
+
+    /* ================= SETTINGS CONTROLS ================= */
+
+    function openSettingsModal() {
+      showModal('settings-modal');
+    }
+
+    function setGameType(type) {
+      saveStateToHistory();
+      state.isDoubles = (type === 'doubles');
+      state.serverNumber = state.isDoubles ? 2 : 1;
+      updateUI();
+    }
+
+    function setTargetScore(score) {
+      saveStateToHistory();
+      state.targetScore = score;
+      updateUI();
+    }
+
+    function toggleWinByTwo() {
+      saveStateToHistory();
+      state.winByTwo = document.getElementById('win-by-two').checked;
+    }
+
+    /* ================= VOICE ANNOUNCEMENT & SPEECH ================= */
+
+    function toggleSpeech() {
+      state.isSpeechEnabled = !state.isSpeechEnabled;
+      document.getElementById('speech-enable').checked = state.isSpeechEnabled;
+      updateSpeechBtnUI();
+      if (state.isSpeechEnabled) speakText("音声アナウンス有効");
+    }
+
+    function toggleSpeechFromCheck() {
+      state.isSpeechEnabled = document.getElementById('speech-enable').checked;
+      updateSpeechBtnUI();
+    }
+
+    function updateSpeechBtnUI() {
+      const btn = document.getElementById('speech-btn');
+      if (state.isSpeechEnabled) {
+        btn.classList.remove('bg-slate-800', 'text-slate-400');
+        btn.classList.add('bg-amber-500/20', 'text-amber-400', 'border-amber-500/50');
+      } else {
+        btn.classList.remove('bg-amber-500/20', 'text-amber-400', 'border-amber-500/50');
+        btn.classList.add('bg-slate-800', 'text-slate-400');
+      }
+    }
+
+    function speakCurrentCall(prefix = "") {
+      if (!state.isSpeechEnabled) return;
+
+      const isA = state.servingTeam === 'A';
+      const myScore = isA ? state.scoreA : state.scoreB;
+      const oppScore = isA ? state.scoreB : state.scoreA;
+
+      let text = prefix ? `${prefix}。` : "";
+      if (state.isDoubles) {
+        text += `${myScore} 対 ${oppScore}、サーバー ${state.serverNumber}`;
+      } else {
+        text += `${myScore} 対 ${oppScore}`;
+      }
+
+      speakText(text);
+    }
+
+    function speakText(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); // 前の読み上げを停止
+        const uttr = new SpeechSynthesisUtterance(text);
+        uttr.lang = 'ja-JP';
+        uttr.rate = 1.1; // やや早め
+        window.speechSynthesis.speak(uttr);
+      }
+    }
+
+    /* ================= HELPER FUNCTIONS ================= */
+
+    function vibrate(pattern = 30) {
+      if ('vibrate' in navigator) {
+        navigator.vibrate(pattern);
+      }
+    }
+
+    function showModal(id) {
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    // 画面スリープ防止 (Wake Lock API)
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          await navigator.wakeLock.request('screen');
+        }
+      } catch (err) {
+        console.log('Wake Lock Error:', err);
+      }
+    }
+  </script>
+</body>
+</html>
