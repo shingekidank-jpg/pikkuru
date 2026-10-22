@@ -55,11 +55,8 @@
       </div>
     </div>
 
-    <!-- アナウンス / リセット -->
+    <!-- リセット -->
     <div id="referee-controls-right" class="flex items-center space-x-2">
-      <button id="speech-btn" onclick="toggleSpeech()" class="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-amber-400 border border-slate-700 text-xs flex items-center">
-        <i class="fa-solid fa-volume-high text-sm"></i>
-      </button>
       <button onclick="resetGameWithConfirm()" class="px-2 py-1.5 rounded-lg text-xs bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800/60 flex items-center">
         <i class="fa-solid fa-arrow-rotate-right mr-1"></i> リセット
       </button>
@@ -303,11 +300,6 @@
           <span class="font-medium text-slate-300">デュース (2点差で勝利)</span>
           <input type="checkbox" id="win-by-two" checked onchange="toggleWinByTwo()" class="w-5 h-5 accent-emerald-500 rounded cursor-pointer">
         </div>
-
-        <div class="flex justify-between items-center py-1">
-          <span class="font-medium text-slate-300">自動音声アナウンス</span>
-          <input type="checkbox" id="speech-enable" onchange="toggleSpeechFromCheck()" class="w-5 h-5 accent-emerald-500 rounded cursor-pointer">
-        </div>
       </div>
 
       <div class="mt-6">
@@ -343,7 +335,6 @@
       timeoutsB: 2,
       
       isDisplayMode: false,
-      isSpeechEnabled: false,
       gameEnded: false
     };
 
@@ -375,7 +366,6 @@
       state.activeServerB = 1;
       closeModal('start-server-modal');
       updateUI();
-      speakCurrentCall("ゲームスタート");
     }
 
     /* ================= CORE PICKLEBALL LOGIC ================= */
@@ -405,7 +395,6 @@
           }
         }
 
-        speakCurrentCall();
         checkWinner();
       } else {
         // レシーブ側の+1ボタン -> サーブ側のエラーとして処理
@@ -433,7 +422,6 @@
           state.isInitialFirstServer = false;
           state.servingTeam = faultingTeam === 'A' ? 'B' : 'A';
           state.serverNumber = 1;
-          speakCurrentCall("サイドアウト");
         } else if (state.serverNumber === 1) {
           // 1stサーバー失敗 -> 同じチームの2ndサーバーへ交代 (選手もパートナーに切替)
           state.serverNumber = 2;
@@ -442,17 +430,14 @@
           } else {
             state.activeServerB = state.activeServerB === 1 ? 2 : 1;
           }
-          speakCurrentCall();
         } else {
           // 2ndサーバー失敗 -> サイドアウト（相手チームの1stサーバーへ交代）
           state.servingTeam = faultingTeam === 'A' ? 'B' : 'A';
           state.serverNumber = 1;
-          speakCurrentCall("サイドアウト");
         }
       } else {
         // シングルス: 即サイドアウト
         state.servingTeam = faultingTeam === 'A' ? 'B' : 'A';
-        speakCurrentCall("サイドアウト");
       }
     }
 
@@ -476,7 +461,6 @@
         document.getElementById('winner-text').innerText = `${winner} の勝利！`;
         document.getElementById('winner-score-summary').innerText = `${scoreA} - ${scoreB}`;
         showModal('winner-modal');
-        speakText(`${winner} の勝利です。`);
       }
     }
 
@@ -798,58 +782,6 @@
     function toggleWinByTwo() {
       saveStateToHistory();
       state.winByTwo = document.getElementById('win-by-two').checked;
-    }
-
-    /* ================= VOICE ANNOUNCEMENT & SPEECH ================= */
-
-    function toggleSpeech() {
-      state.isSpeechEnabled = !state.isSpeechEnabled;
-      document.getElementById('speech-enable').checked = state.isSpeechEnabled;
-      updateSpeechBtnUI();
-      if (state.isSpeechEnabled) speakText("音声アナウンス有効");
-    }
-
-    function toggleSpeechFromCheck() {
-      state.isSpeechEnabled = document.getElementById('speech-enable').checked;
-      updateSpeechBtnUI();
-    }
-
-    function updateSpeechBtnUI() {
-      const btn = document.getElementById('speech-btn');
-      if (state.isSpeechEnabled) {
-        btn.classList.remove('bg-slate-800', 'text-slate-400');
-        btn.classList.add('bg-amber-500/20', 'text-amber-400', 'border-amber-500/50');
-      } else {
-        btn.classList.remove('bg-amber-500/20', 'text-amber-400', 'border-amber-500/50');
-        btn.classList.add('bg-slate-800', 'text-slate-400');
-      }
-    }
-
-    function speakCurrentCall(prefix = "") {
-      if (!state.isSpeechEnabled) return;
-
-      const isA = state.servingTeam === 'A';
-      const myScore = isA ? state.scoreA : state.scoreB;
-      const oppScore = isA ? state.scoreB : state.scoreA;
-
-      let text = prefix ? `${prefix}。` : "";
-      if (state.isDoubles) {
-        text += `${myScore} 対 ${oppScore}、サーバー ${state.serverNumber}`;
-      } else {
-        text += `${myScore} 対 ${oppScore}`;
-      }
-
-      speakText(text);
-    }
-
-    function speakText(text) {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const uttr = new SpeechSynthesisUtterance(text);
-        uttr.lang = 'ja-JP';
-        uttr.rate = 1.1;
-        window.speechSynthesis.speak(uttr);
-      }
     }
 
     /* ================= HELPER FUNCTIONS ================= */
