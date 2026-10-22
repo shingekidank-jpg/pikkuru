@@ -140,12 +140,12 @@
         <div class="absolute inset-x-0 top-[35%] bottom-[35%] bg-amber-500/10 border-y border-amber-500/30 landscape:hidden"></div>
         <div class="hidden landscape:block absolute inset-y-0 left-[35%] right-[35%] bg-amber-500/10 border-x border-amber-500/30"></div>
         
-        <!-- 上 / 左コート (チーム A - 水色) -->
+        <!-- 上 / 左コート (チーム A - 水色固定) -->
         <div class="flex-1 grid grid-cols-2 landscape:grid-cols-1 landscape:grid-rows-2 border-b landscape:border-b-0 landscape:border-r border-slate-800">
           <div id="court-a-left" class="border-r landscape:border-r-0 landscape:border-b border-slate-800/50 flex items-center justify-center text-[9px] text-slate-600">L</div>
           <div id="court-a-right" class="flex items-center justify-center text-[9px] text-slate-600">R</div>
         </div>
-        <!-- 下 / 右コート (チーム B - オレンジ) -->
+        <!-- 下 / 右コート (チーム B - オレンジ固定) -->
         <div class="flex-1 grid grid-cols-2 landscape:grid-cols-1 landscape:grid-rows-2">
           <div id="court-b-left" class="border-r landscape:border-r-0 landscape:border-b border-slate-800/50 flex items-center justify-center text-[9px] text-slate-600">L</div>
           <div id="court-b-right" class="flex items-center justify-center text-[9px] text-slate-600">R</div>
@@ -330,10 +330,7 @@
       scoreB: 0,
       
       servingTeam: 'A',         // 'A' または 'B'
-      serverNumber: 2,          // ダブルス開始時は "0-0-2"
-      
-      activeServerA: 2,         // チームAの現在サーブ中の選手 (1 or 2) : 開始時はレフト(選手2)
-      activeServerB: 2,         // チームBの現在サーブ中の選手 (1 or 2)
+      serverNumber: 2,          // 試合開始最初の1点目のみ例外的に "2" (0-0-2)
       
       timeoutsA: 2,
       timeoutsB: 2,
@@ -365,9 +362,7 @@
     function selectFirstServer(team) {
       saveStateToHistory();
       state.servingTeam = team;
-      state.serverNumber = state.isDoubles ? 2 : 1; 
-      state.activeServerA = 2; // レフトからスタート
-      state.activeServerB = 2;
+      state.serverNumber = state.isDoubles ? 2 : 1; // 試合最初のスタート時のみ 0-0-2
       closeModal('start-server-modal');
       updateUI();
       speakCurrentCall("ゲームスタート");
@@ -381,11 +376,23 @@
       vibrate();
 
       if (state.servingTeam === team) {
-        // サーブ側が得点 (※連続得点してもサーバーは固定、立つ位置のみ偶奇で変動)
+        // サーブ側が得点獲得
         if (team === 'A') {
           state.scoreA++;
         } else {
           state.scoreB++;
+        }
+
+        // 最初の0-0-2のときのみ、得点したら自動でサーバーを「1」に切り替える
+        // 以降はサーブ権交代（サイドアウト）後は「1」から始まり、得点したら「2」に自動変更
+        if (state.isDoubles) {
+          if (state.serverNumber === 2 && (state.scoreA + state.scoreB === 1)) {
+            // 試合最初のポイント（0-0-2から0-1-1へ）
+            state.serverNumber = 1;
+          } else if (state.serverNumber === 1) {
+            // 通常のラリー獲得：1から2へ自動変更
+            state.serverNumber = 2;
+          }
         }
 
         speakCurrentCall();
@@ -412,20 +419,13 @@
     function handleFaultInternal(faultingTeam) {
       if (state.isDoubles) {
         if (state.serverNumber === 1) {
-          // 1stサーバー失敗 -> 同じチームの2ndサーバーへ交代
+          // 1stサーバー失敗 -> 同じチームの2ndサーバーへ交代 (サーバー番号を2に)
           state.serverNumber = 2;
-          if (faultingTeam === 'A') {
-            state.activeServerA = state.activeServerA === 1 ? 2 : 1;
-          } else {
-            state.activeServerB = state.activeServerB === 1 ? 2 : 1;
-          }
           speakCurrentCall();
         } else {
-          // 2ndサーバー失敗 -> サイドアウト（相手チームの1stサーバーへ移行）
+          // 2ndサーバー失敗 -> サイドアウト（相手チームへサーブ権移動、最初は必ず「1」から）
           state.servingTeam = faultingTeam === 'A' ? 'B' : 'A';
           state.serverNumber = 1;
-          if (state.servingTeam === 'A') state.activeServerA = 1;
-          else state.activeServerB = 1;
           speakCurrentCall("サイドアウト");
         }
       } else {
@@ -491,8 +491,6 @@
       state.scoreB = 0;
       state.servingTeam = 'A';
       state.serverNumber = state.isDoubles ? 2 : 1;
-      state.activeServerA = 2;
-      state.activeServerB = 2;
       state.timeoutsA = 2;
       state.timeoutsB = 2;
       state.gameEnded = false;
@@ -608,7 +606,7 @@
       const currentScoreA = state.scoreA;
       const currentScoreB = state.scoreB;
 
-      // 偶数=選手2(レフト), 奇数=選手1(ライト)
+      // 偶数点＝選手2(レフト)、奇数点＝選手1(ライト)
       const activeA = (currentScoreA % 2 === 0) ? 2 : 1;
       const activeB = (currentScoreB % 2 === 0) ? 2 : 1;
 
@@ -651,7 +649,7 @@
 
       const isA = state.servingTeam === 'A';
       const currentScore = isA ? state.scoreA : state.scoreB;
-      const isRightCourt = (currentScore % 2 !== 0); // 奇数なら右(R)、偶数なら左(L)
+      const isRightCourt = (currentScore % 2 !== 0);
 
       let activeCellId = isA ? (isRightCourt ? 'court-a-right' : 'court-a-left') : (isRightCourt ? 'court-b-right' : 'court-b-left');
       const activeEl = document.getElementById(activeCellId);
