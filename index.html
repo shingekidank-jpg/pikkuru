@@ -125,10 +125,10 @@
       <!-- サービス状態メッセージ -->
       <div class="text-center flex-1 landscape:flex-none">
         <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold">コール</div>
-        <div id="call-display" class="text-lg sm:text-2xl font-black text-amber-400 tracking-wider my-0.5">
+        <div id="call-display" class="text-lg sm:text-2xl font-black text-cyan-400 tracking-wider my-0.5 transition-colors">
           0 - 0 - 2
         </div>
-        <div id="serving-team-label" class="text-[11px] text-slate-300 font-medium">
+        <div id="serving-team-label" class="text-[11px] font-semibold transition-colors text-cyan-400">
           チーム A サーブ
         </div>
       </div>
@@ -549,11 +549,23 @@
       const oppScore = isA ? state.scoreB : state.scoreA;
 
       let callStr = state.isDoubles ? `${myScore} - ${oppScore} - ${state.serverNumber}` : `${myScore} - ${oppScore}`;
-      document.getElementById('call-display').innerText = callStr;
+      
+      const callDisplayEl = document.getElementById('call-display');
+      callDisplayEl.innerText = callStr;
 
       const teamAName = document.getElementById('team-a-name').value || 'チーム A';
       const teamBName = document.getElementById('team-b-name').value || 'チーム B';
-      document.getElementById('serving-team-label').innerText = `${isA ? teamAName : teamBName} サーブ`;
+      const servingTeamLabel = document.getElementById('serving-team-label');
+      servingTeamLabel.innerText = `${isA ? teamAName : teamBName} サーブ`;
+
+      // サーブ権を持つチームの色（A: 水色 text-cyan-400, B: オレンジ text-amber-400）に切り替え
+      if (isA) {
+        callDisplayEl.className = "text-lg sm:text-2xl font-black tracking-wider my-0.5 transition-colors text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.3)]";
+        servingTeamLabel.className = "text-[11px] font-semibold transition-colors text-cyan-400";
+      } else {
+        callDisplayEl.className = "text-lg sm:text-2xl font-black tracking-wider my-0.5 transition-colors text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.3)]";
+        servingTeamLabel.className = "text-[11px] font-semibold transition-colors text-amber-400";
+      }
 
       // サーバーバッジ表示
       const badgeA = document.getElementById('team-a-server-badge');
