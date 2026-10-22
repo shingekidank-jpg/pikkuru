@@ -67,12 +67,12 @@
   </header>
 
   <!-- ================= MAIN SCOREBOARD CONTENT ================= -->
-  <main id="main-container" class="relative flex-1 flex flex-col landscape:flex-row p-2 gap-2 h-full overflow-hidden transition-transform duration-500">
+  <main id="main-container" class="relative flex-1 flex flex-col landscape:flex-row p-2 gap-2 h-full overflow-hidden transition-all duration-300">
     
     <!-- タップ無効化用オーバーレイ（表示モード用） -->
     <div id="lock-overlay" class="hidden absolute inset-0 z-10 bg-transparent"></div>
 
-    <!-- チーム A (常時 水色固定 / Cyan) -->
+    <!-- チーム A (水色 / Cyan 固定) -->
     <section id="team-a-card" class="flex-1 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-900/80 border-2 border-cyan-500/50 flex flex-col justify-between p-3 relative overflow-hidden transition-all">
       <!-- チーム名 & タイムアウト -->
       <div class="flex justify-between items-center border-b border-slate-800/80 pb-2 z-0">
@@ -133,20 +133,20 @@
         </div>
       </div>
 
-      <!-- コート表示 -->
+      <!-- コート表示 (水色: チームA / オレンジ: チームB) -->
       <div id="court-diagram" class="w-28 h-16 sm:w-36 sm:h-20 landscape:w-36 landscape:h-20 bg-slate-950 border border-slate-700 rounded relative flex flex-col landscape:flex-row shrink-0 overflow-hidden my-auto">
         <div class="absolute inset-x-0 top-1/2 h-0.5 bg-slate-400 z-10 -translate-y-1/2 landscape:hidden"></div>
         <div class="hidden landscape:block absolute inset-y-0 left-1/2 w-0.5 bg-slate-400 z-10 -translate-x-1/2"></div>
         <div class="absolute inset-x-0 top-[35%] bottom-[35%] bg-amber-500/10 border-y border-amber-500/30 landscape:hidden"></div>
         <div class="hidden landscape:block absolute inset-y-0 left-[35%] right-[35%] bg-amber-500/10 border-x border-amber-500/30"></div>
         
-        <!-- 上 / 左コート (チーム A - 常時 水色固定) -->
-        <div class="flex-1 grid grid-cols-2 landscape:grid-cols-1 landscape:grid-rows-2 border-b landscape:border-b-0 landscape:border-r border-slate-800">
+        <!-- 上 / 左コート (チーム A - 水色) -->
+        <div id="court-a-section" class="flex-1 grid grid-cols-2 landscape:grid-cols-1 landscape:grid-rows-2 border-b landscape:border-b-0 landscape:border-r border-slate-800">
           <div id="court-a-left" class="border-r landscape:border-r-0 landscape:border-b border-slate-800/50 flex items-center justify-center text-[9px] text-cyan-500/60 font-bold">L</div>
           <div id="court-a-right" class="flex items-center justify-center text-[9px] text-cyan-500/60 font-bold">R</div>
         </div>
-        <!-- 下 / 右コート (チーム B - 常時 オレンジ固定) -->
-        <div class="flex-1 grid grid-cols-2 landscape:grid-cols-1 landscape:grid-rows-2">
+        <!-- 下 / 右コート (チーム B - オレンジ) -->
+        <div id="court-b-section" class="flex-1 grid grid-cols-2 landscape:grid-cols-1 landscape:grid-rows-2">
           <div id="court-b-left" class="border-r landscape:border-r-0 landscape:border-b border-slate-800/50 flex items-center justify-center text-[9px] text-amber-500/60 font-bold">L</div>
           <div id="court-b-right" class="flex items-center justify-center text-[9px] text-amber-500/60 font-bold">R</div>
         </div>
@@ -163,7 +163,7 @@
       </div>
     </section>
 
-    <!-- チーム B (常時 オレンジ固定 / Amber) -->
+    <!-- チーム B (オレンジ / Amber 固定) -->
     <section id="team-b-card" class="flex-1 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-900/80 border-2 border-amber-500/50 flex flex-col justify-between p-3 relative overflow-hidden transition-all">
       <!-- チーム名 & タイムアウト -->
       <div class="flex justify-between items-center border-b border-slate-800/80 pb-2 z-0">
@@ -330,9 +330,15 @@
       scoreB: 0,
       
       servingTeam: 'A',         // 'A' または 'B'
-      serverNumber: 2,          // ゲーム開始最初の1点目のみ例外的に "2"
-      isInitialFirstServer: true, // 試合最初のファーストサーバーフラグ
+      serverNumber: 2,          // 試合開始最初の1点目のみ例外的に "2"
+      isInitialFirstServer: true, // 最初のファーストサーバーフラグ
       
+      // 各チームのサーブを打っている選手 (1 or 2) : エラーが起きるまで連続得点中は固定
+      activeServerA: 1,
+      activeServerB: 1,
+
+      isSwapped: false,          // コートチェンジ状態フラグ
+
       timeoutsA: 2,
       timeoutsB: 2,
       
@@ -365,6 +371,8 @@
       state.servingTeam = team;
       state.serverNumber = state.isDoubles ? 2 : 1; 
       state.isInitialFirstServer = true;
+      state.activeServerA = 1;
+      state.activeServerB = 1;
       closeModal('start-server-modal');
       updateUI();
       speakCurrentCall("ゲームスタート");
@@ -387,10 +395,10 @@
 
         if (state.isDoubles) {
           if (state.isInitialFirstServer) {
-            // 1. 一番最初のサーブ権を持ったチームが得点したときは「2」のまま維持
+            // 最初のファーストサーバーの得点：2のまま維持
             state.serverNumber = 2;
           } else {
-            // 2. 通常のサイドアウト後：1で得点したら「2」へ切り替え
+            // サイドアウト後の通常時：得点したら「2」へ自動切り替え（打つ選手は交代せず同じ人が打つ）
             if (state.serverNumber === 1) {
               state.serverNumber = 2;
             }
@@ -421,17 +429,22 @@
     function handleFaultInternal(faultingTeam) {
       if (state.isDoubles) {
         if (state.isInitialFirstServer) {
-          // 最初のファーストサーバー（0-0-2）が失敗した場合は即サイドアウト（相手の「1」へ）
+          // 最初のファーストサーバー（0-0-2）ミス -> 即サイドアウト（相手の「1」へ）
           state.isInitialFirstServer = false;
           state.servingTeam = faultingTeam === 'A' ? 'B' : 'A';
           state.serverNumber = 1;
           speakCurrentCall("サイドアウト");
         } else if (state.serverNumber === 1) {
-          // 1stサーバー失敗 -> 同じチームの2ndサーバーへ交代 (サーバー番号を2に)
+          // 1stサーバー失敗 -> 同じチームの2ndサーバーへ交代 (選手もパートナーに切替)
           state.serverNumber = 2;
+          if (faultingTeam === 'A') {
+            state.activeServerA = state.activeServerA === 1 ? 2 : 1;
+          } else {
+            state.activeServerB = state.activeServerB === 1 ? 2 : 1;
+          }
           speakCurrentCall();
         } else {
-          // 2ndサーバー失敗 -> サイドアウト（相手チームへ交代、最初は必ず「1」からスタート）
+          // 2ndサーバー失敗 -> サイドアウト（相手チームの1stサーバーへ交代）
           state.servingTeam = faultingTeam === 'A' ? 'B' : 'A';
           state.serverNumber = 1;
           speakCurrentCall("サイドアウト");
@@ -500,6 +513,9 @@
       state.servingTeam = 'A';
       state.serverNumber = state.isDoubles ? 2 : 1;
       state.isInitialFirstServer = true;
+      state.activeServerA = 1;
+      state.activeServerB = 1;
+      state.isSwapped = false;
       state.timeoutsA = 2;
       state.timeoutsB = 2;
       state.gameEnded = false;
@@ -507,7 +523,7 @@
       openStartServerModal();
     }
 
-    /* ================= DISPLAY MODE & LOCKING (180° REVERSE) ================= */
+    /* ================= DISPLAY MODE & COURT SWAP ================= */
 
     function toggleDisplayMode() {
       vibrate();
@@ -520,16 +536,12 @@
       const modeBtn = document.getElementById('toggle-mode-btn');
       const modeText = document.getElementById('mode-text');
       const modeIcon = document.getElementById('mode-icon');
-      const mainContainer = document.getElementById('main-container');
 
       if (state.isDisplayMode) {
         lockOverlay.classList.remove('hidden');
         refereeControlsLeft.classList.add('invisible');
         refereeControlsRight.classList.add('invisible');
         refereeOnlyElements.forEach(el => el.classList.add('hidden'));
-
-        // 対面プレイヤー・観客に見せるため画面全体を180度回転反転
-        mainContainer.classList.add('rotate-180');
 
         modeBtn.classList.remove('bg-emerald-500', 'hover:bg-emerald-600', 'text-slate-950');
         modeBtn.classList.add('bg-amber-500', 'hover:bg-amber-600', 'text-slate-950', 'ring-4', 'ring-amber-500/40');
@@ -541,13 +553,32 @@
         refereeControlsRight.classList.remove('invisible');
         refereeOnlyElements.forEach(el => el.classList.remove('hidden'));
 
-        // 通常の審判視点に戻す
-        mainContainer.classList.remove('rotate-180');
-
         modeBtn.classList.remove('bg-amber-500', 'hover:bg-amber-600', 'ring-4', 'ring-amber-500/40');
         modeBtn.classList.add('bg-emerald-500', 'hover:bg-emerald-600', 'text-slate-950');
         modeText.innerText = "表示モードへ";
         modeIcon.className = "fa-solid fa-expand mr-1.5";
+      }
+
+      updateLayoutOrientation();
+    }
+
+    function swapSides() {
+      saveStateToHistory();
+      state.isSwapped = !state.isSwapped;
+      vibrate();
+      updateUI();
+    }
+
+    function updateLayoutOrientation() {
+      const mainContainer = document.getElementById('main-container');
+      
+      // コートチェンジ(isSwapped) または 表示モード(isDisplayMode) の際に左右反転
+      const shouldReverse = state.isSwapped ^ state.isDisplayMode;
+
+      if (shouldReverse) {
+        mainContainer.classList.add('flex-col-reverse', 'landscape:flex-row-reverse');
+      } else {
+        mainContainer.classList.remove('flex-col-reverse', 'landscape:flex-row-reverse');
       }
     }
 
@@ -574,7 +605,7 @@
       const servingTeamLabel = document.getElementById('serving-team-label');
       servingTeamLabel.innerText = `${isA ? teamAName : teamBName} サーブ`;
 
-      // カラー固定 (A: 水色 text-cyan-400, B: オレンジ text-amber-400)
+      // カラー固定 (チームA: 水色 text-cyan-400, チームB: オレンジ text-amber-400)
       if (isA) {
         callDisplayEl.className = "text-lg sm:text-2xl font-black tracking-wider my-0.5 transition-colors text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.3)]";
         servingTeamLabel.className = "text-[11px] font-semibold transition-colors text-cyan-400";
@@ -604,6 +635,7 @@
 
       updatePlayerHighlights();
       updateCourtDiagram();
+      updateLayoutOrientation();
       updateSettingsUI();
     }
 
@@ -620,40 +652,34 @@
       containerB.classList.remove('hidden');
 
       const isA = state.servingTeam === 'A';
-      const currentScoreA = state.scoreA;
-      const currentScoreB = state.scoreB;
 
-      // 偶数点＝選手2(レフト)、奇数点＝選手1(ライト)
-      const activeA = (currentScoreA % 2 === 0) ? 2 : 1;
-      const activeB = (currentScoreB % 2 === 0) ? 2 : 1;
-
-      // チームA (水色固定)
+      // チームA (水色)
       const pA1Box = document.getElementById('player-a1-box');
       const pA2Box = document.getElementById('player-a2-box');
       const pA1Badge = document.getElementById('player-a1-badge');
       const pA2Badge = document.getElementById('player-a2-badge');
 
       pA1Box.className = "flex-1 p-1.5 rounded-lg border bg-slate-950/50 flex items-center justify-between transition-all " +
-        (isA && activeA === 1 ? "border-cyan-400 bg-cyan-950/40 ring-2 ring-cyan-400/30" : "border-slate-800");
-      pA1Badge.className = isA && activeA === 1 ? "text-[10px] px-1.5 py-0.5 rounded bg-cyan-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
+        (isA && state.activeServerA === 1 ? "border-cyan-400 bg-cyan-950/40 ring-2 ring-cyan-400/30" : "border-slate-800");
+      pA1Badge.className = isA && state.activeServerA === 1 ? "text-[10px] px-1.5 py-0.5 rounded bg-cyan-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
 
       pA2Box.className = "flex-1 p-1.5 rounded-lg border bg-slate-950/50 flex items-center justify-between transition-all " +
-        (isA && activeA === 2 ? "border-cyan-400 bg-cyan-950/40 ring-2 ring-cyan-400/30" : "border-slate-800");
-      pA2Badge.className = isA && activeA === 2 ? "text-[10px] px-1.5 py-0.5 rounded bg-cyan-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
+        (isA && state.activeServerA === 2 ? "border-cyan-400 bg-cyan-950/40 ring-2 ring-cyan-400/30" : "border-slate-800");
+      pA2Badge.className = isA && state.activeServerA === 2 ? "text-[10px] px-1.5 py-0.5 rounded bg-cyan-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
 
-      // チームB (オレンジ固定)
+      // チームB (オレンジ)
       const pB1Box = document.getElementById('player-b1-box');
       const pB2Box = document.getElementById('player-b2-box');
       const pB1Badge = document.getElementById('player-b1-badge');
       const pB2Badge = document.getElementById('player-b2-badge');
 
       pB1Box.className = "flex-1 p-1.5 rounded-lg border bg-slate-950/50 flex items-center justify-between transition-all " +
-        (!isA && activeB === 1 ? "border-amber-400 bg-amber-950/40 ring-2 ring-amber-400/30" : "border-slate-800");
-      pB1Badge.className = !isA && activeB === 1 ? "text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
+        (!isA && state.activeServerB === 1 ? "border-amber-400 bg-amber-950/40 ring-2 ring-amber-400/30" : "border-slate-800");
+      pB1Badge.className = !isA && state.activeServerB === 1 ? "text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
 
       pB2Box.className = "flex-1 p-1.5 rounded-lg border bg-slate-950/50 flex items-center justify-between transition-all " +
-        (!isA && activeB === 2 ? "border-amber-400 bg-amber-950/40 ring-2 ring-amber-400/30" : "border-slate-800");
-      pB2Badge.className = !isA && activeB === 2 ? "text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
+        (!isA && state.activeServerB === 2 ? "border-amber-400 bg-amber-950/40 ring-2 ring-amber-400/30" : "border-slate-800");
+      pB2Badge.className = !isA && state.activeServerB === 2 ? "text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
     }
 
     function updateCourtDiagram() {
@@ -703,27 +729,6 @@
       if (!state.isDoubles) return;
       saveStateToHistory();
       state.serverNumber = state.serverNumber === 1 ? 2 : 1;
-      vibrate();
-      updateUI();
-    }
-
-    function swapSides() {
-      saveStateToHistory();
-      const tempScore = state.scoreA;
-      state.scoreA = state.scoreB;
-      state.scoreB = tempScore;
-
-      const tempTimeouts = state.timeoutsA;
-      state.timeoutsA = state.timeoutsB;
-      state.timeoutsB = tempTimeouts;
-
-      const nameA = document.getElementById('team-a-name').value;
-      const nameB = document.getElementById('team-b-name').value;
-      document.getElementById('team-a-name').value = nameB;
-      document.getElementById('team-b-name').value = nameA;
-
-      state.servingTeam = state.servingTeam === 'A' ? 'B' : 'A';
-
       vibrate();
       updateUI();
     }
