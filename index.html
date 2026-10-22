@@ -67,12 +67,12 @@
   </header>
 
   <!-- ================= MAIN SCOREBOARD CONTENT ================= -->
-  <main class="relative flex-1 flex flex-col landscape:flex-row p-2 gap-2 h-full overflow-hidden">
+  <main id="main-container" class="relative flex-1 flex flex-col landscape:flex-row p-2 gap-2 h-full overflow-hidden transition-transform duration-500">
     
     <!-- タップ無効化用オーバーレイ（表示モード用） -->
     <div id="lock-overlay" class="hidden absolute inset-0 z-10 bg-transparent"></div>
 
-    <!-- チーム A (常時 水色固定) -->
+    <!-- チーム A (常時 水色固定 / Cyan) -->
     <section id="team-a-card" class="flex-1 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-900/80 border-2 border-cyan-500/50 flex flex-col justify-between p-3 relative overflow-hidden transition-all">
       <!-- チーム名 & タイムアウト -->
       <div class="flex justify-between items-center border-b border-slate-800/80 pb-2 z-0">
@@ -88,11 +88,11 @@
       <!-- プレイヤー一覧 (ダブルス用) -->
       <div id="team-a-players-container" class="mt-2 flex gap-2">
         <div id="player-a1-box" class="flex-1 p-1.5 rounded-lg border border-slate-800 bg-slate-950/50 flex items-center justify-between transition-all">
-          <input type="text" id="player-a1-name" value="選手 1" class="bg-transparent text-xs font-semibold text-slate-300 focus:outline-none w-full">
+          <input type="text" id="player-a1-name" value="選手 1" class="bg-transparent text-xs font-semibold text-cyan-300 focus:outline-none w-full">
           <span id="player-a1-badge" class="hidden text-[10px] px-1.5 py-0.5 rounded bg-cyan-400 text-slate-950 font-bold shrink-0 ml-1">サーブ</span>
         </div>
         <div id="player-a2-box" class="flex-1 p-1.5 rounded-lg border border-slate-800 bg-slate-950/50 flex items-center justify-between transition-all">
-          <input type="text" id="player-a2-name" value="選手 2" class="bg-transparent text-xs font-semibold text-slate-300 focus:outline-none w-full">
+          <input type="text" id="player-a2-name" value="選手 2" class="bg-transparent text-xs font-semibold text-cyan-300 focus:outline-none w-full">
           <span id="player-a2-badge" class="hidden text-[10px] px-1.5 py-0.5 rounded bg-cyan-400 text-slate-950 font-bold shrink-0 ml-1">サーブ</span>
         </div>
       </div>
@@ -121,7 +121,7 @@
     </section>
 
     <!-- センター情報 & コート表示 -->
-    <section class="shrink-0 flex landscape:flex-col justify-between items-center bg-slate-900/90 rounded-xl p-2 border border-slate-800 gap-2 min-w-[140px]">
+    <section id="center-info-panel" class="shrink-0 flex landscape:flex-col justify-between items-center bg-slate-900/90 rounded-xl p-2 border border-slate-800 gap-2 min-w-[140px]">
       <!-- サービス状態メッセージ -->
       <div class="text-center flex-1 landscape:flex-none">
         <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold">コール</div>
@@ -140,15 +140,15 @@
         <div class="absolute inset-x-0 top-[35%] bottom-[35%] bg-amber-500/10 border-y border-amber-500/30 landscape:hidden"></div>
         <div class="hidden landscape:block absolute inset-y-0 left-[35%] right-[35%] bg-amber-500/10 border-x border-amber-500/30"></div>
         
-        <!-- 上 / 左コート (チーム A - 水色固定) -->
+        <!-- 上 / 左コート (チーム A - 常時 水色固定) -->
         <div class="flex-1 grid grid-cols-2 landscape:grid-cols-1 landscape:grid-rows-2 border-b landscape:border-b-0 landscape:border-r border-slate-800">
-          <div id="court-a-left" class="border-r landscape:border-r-0 landscape:border-b border-slate-800/50 flex items-center justify-center text-[9px] text-slate-600">L</div>
-          <div id="court-a-right" class="flex items-center justify-center text-[9px] text-slate-600">R</div>
+          <div id="court-a-left" class="border-r landscape:border-r-0 landscape:border-b border-slate-800/50 flex items-center justify-center text-[9px] text-cyan-500/60 font-bold">L</div>
+          <div id="court-a-right" class="flex items-center justify-center text-[9px] text-cyan-500/60 font-bold">R</div>
         </div>
-        <!-- 下 / 右コート (チーム B - オレンジ固定) -->
+        <!-- 下 / 右コート (チーム B - 常時 オレンジ固定) -->
         <div class="flex-1 grid grid-cols-2 landscape:grid-cols-1 landscape:grid-rows-2">
-          <div id="court-b-left" class="border-r landscape:border-r-0 landscape:border-b border-slate-800/50 flex items-center justify-center text-[9px] text-slate-600">L</div>
-          <div id="court-b-right" class="flex items-center justify-center text-[9px] text-slate-600">R</div>
+          <div id="court-b-left" class="border-r landscape:border-r-0 landscape:border-b border-slate-800/50 flex items-center justify-center text-[9px] text-amber-500/60 font-bold">L</div>
+          <div id="court-b-right" class="flex items-center justify-center text-[9px] text-amber-500/60 font-bold">R</div>
         </div>
       </div>
 
@@ -163,7 +163,7 @@
       </div>
     </section>
 
-    <!-- チーム B (常時 オレンジ固定) -->
+    <!-- チーム B (常時 オレンジ固定 / Amber) -->
     <section id="team-b-card" class="flex-1 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-900/80 border-2 border-amber-500/50 flex flex-col justify-between p-3 relative overflow-hidden transition-all">
       <!-- チーム名 & タイムアウト -->
       <div class="flex justify-between items-center border-b border-slate-800/80 pb-2 z-0">
@@ -179,11 +179,11 @@
       <!-- プレイヤー一覧 (ダブルス用) -->
       <div id="team-b-players-container" class="mt-2 flex gap-2">
         <div id="player-b1-box" class="flex-1 p-1.5 rounded-lg border border-slate-800 bg-slate-950/50 flex items-center justify-between transition-all">
-          <input type="text" id="player-b1-name" value="選手 1" class="bg-transparent text-xs font-semibold text-slate-300 focus:outline-none w-full">
+          <input type="text" id="player-b1-name" value="選手 1" class="bg-transparent text-xs font-semibold text-amber-300 focus:outline-none w-full">
           <span id="player-b1-badge" class="hidden text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold shrink-0 ml-1">サーブ</span>
         </div>
         <div id="player-b2-box" class="flex-1 p-1.5 rounded-lg border border-slate-800 bg-slate-950/50 flex items-center justify-between transition-all">
-          <input type="text" id="player-b2-name" value="選手 2" class="bg-transparent text-xs font-semibold text-slate-300 focus:outline-none w-full">
+          <input type="text" id="player-b2-name" value="選手 2" class="bg-transparent text-xs font-semibold text-amber-300 focus:outline-none w-full">
           <span id="player-b2-badge" class="hidden text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold shrink-0 ml-1">サーブ</span>
         </div>
       </div>
@@ -226,11 +226,11 @@
       
       <div class="grid grid-cols-2 gap-3 mb-4">
         <button onclick="selectFirstServer('A')" class="p-4 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border-2 border-cyan-500/60 text-cyan-300 font-bold flex flex-col items-center justify-center transition-all">
-          <span class="text-xs text-cyan-400">チーム A</span>
+          <span class="text-xs text-cyan-400">チーム A (水色)</span>
           <span id="modal-team-a-label" class="text-base font-black">チーム A</span>
         </button>
         <button onclick="selectFirstServer('B')" class="p-4 rounded-xl bg-amber-950/80 hover:bg-amber-900 border-2 border-amber-500/60 text-amber-300 font-bold flex flex-col items-center justify-center transition-all">
-          <span class="text-xs text-amber-400">チーム B</span>
+          <span class="text-xs text-amber-400">チーム B (オレンジ)</span>
           <span id="modal-team-b-label" class="text-base font-black">チーム B</span>
         </button>
       </div>
@@ -330,7 +330,8 @@
       scoreB: 0,
       
       servingTeam: 'A',         // 'A' または 'B'
-      serverNumber: 2,          // 試合開始最初の1点目のみ例外的に "2" (0-0-2)
+      serverNumber: 2,          // ゲーム開始最初の1点目のみ例外的に "2"
+      isInitialFirstServer: true, // 試合最初のファーストサーバーフラグ
       
       timeoutsA: 2,
       timeoutsB: 2,
@@ -362,7 +363,8 @@
     function selectFirstServer(team) {
       saveStateToHistory();
       state.servingTeam = team;
-      state.serverNumber = state.isDoubles ? 2 : 1; // 試合最初のスタート時のみ 0-0-2
+      state.serverNumber = state.isDoubles ? 2 : 1; 
+      state.isInitialFirstServer = true;
       closeModal('start-server-modal');
       updateUI();
       speakCurrentCall("ゲームスタート");
@@ -383,15 +385,15 @@
           state.scoreB++;
         }
 
-        // 最初の0-0-2のときのみ、得点したら自動でサーバーを「1」に切り替える
-        // 以降はサーブ権交代（サイドアウト）後は「1」から始まり、得点したら「2」に自動変更
         if (state.isDoubles) {
-          if (state.serverNumber === 2 && (state.scoreA + state.scoreB === 1)) {
-            // 試合最初のポイント（0-0-2から0-1-1へ）
-            state.serverNumber = 1;
-          } else if (state.serverNumber === 1) {
-            // 通常のラリー獲得：1から2へ自動変更
+          if (state.isInitialFirstServer) {
+            // 1. 一番最初のサーブ権を持ったチームが得点したときは「2」のまま維持
             state.serverNumber = 2;
+          } else {
+            // 2. 通常のサイドアウト後：1で得点したら「2」へ切り替え
+            if (state.serverNumber === 1) {
+              state.serverNumber = 2;
+            }
           }
         }
 
@@ -418,12 +420,18 @@
 
     function handleFaultInternal(faultingTeam) {
       if (state.isDoubles) {
-        if (state.serverNumber === 1) {
+        if (state.isInitialFirstServer) {
+          // 最初のファーストサーバー（0-0-2）が失敗した場合は即サイドアウト（相手の「1」へ）
+          state.isInitialFirstServer = false;
+          state.servingTeam = faultingTeam === 'A' ? 'B' : 'A';
+          state.serverNumber = 1;
+          speakCurrentCall("サイドアウト");
+        } else if (state.serverNumber === 1) {
           // 1stサーバー失敗 -> 同じチームの2ndサーバーへ交代 (サーバー番号を2に)
           state.serverNumber = 2;
           speakCurrentCall();
         } else {
-          // 2ndサーバー失敗 -> サイドアウト（相手チームへサーブ権移動、最初は必ず「1」から）
+          // 2ndサーバー失敗 -> サイドアウト（相手チームへ交代、最初は必ず「1」からスタート）
           state.servingTeam = faultingTeam === 'A' ? 'B' : 'A';
           state.serverNumber = 1;
           speakCurrentCall("サイドアウト");
@@ -491,6 +499,7 @@
       state.scoreB = 0;
       state.servingTeam = 'A';
       state.serverNumber = state.isDoubles ? 2 : 1;
+      state.isInitialFirstServer = true;
       state.timeoutsA = 2;
       state.timeoutsB = 2;
       state.gameEnded = false;
@@ -498,7 +507,7 @@
       openStartServerModal();
     }
 
-    /* ================= DISPLAY MODE & LOCKING ================= */
+    /* ================= DISPLAY MODE & LOCKING (180° REVERSE) ================= */
 
     function toggleDisplayMode() {
       vibrate();
@@ -511,12 +520,16 @@
       const modeBtn = document.getElementById('toggle-mode-btn');
       const modeText = document.getElementById('mode-text');
       const modeIcon = document.getElementById('mode-icon');
+      const mainContainer = document.getElementById('main-container');
 
       if (state.isDisplayMode) {
         lockOverlay.classList.remove('hidden');
         refereeControlsLeft.classList.add('invisible');
         refereeControlsRight.classList.add('invisible');
         refereeOnlyElements.forEach(el => el.classList.add('hidden'));
+
+        // 対面プレイヤー・観客に見せるため画面全体を180度回転反転
+        mainContainer.classList.add('rotate-180');
 
         modeBtn.classList.remove('bg-emerald-500', 'hover:bg-emerald-600', 'text-slate-950');
         modeBtn.classList.add('bg-amber-500', 'hover:bg-amber-600', 'text-slate-950', 'ring-4', 'ring-amber-500/40');
@@ -527,6 +540,9 @@
         refereeControlsLeft.classList.remove('invisible');
         refereeControlsRight.classList.remove('invisible');
         refereeOnlyElements.forEach(el => el.classList.remove('hidden'));
+
+        // 通常の審判視点に戻す
+        mainContainer.classList.remove('rotate-180');
 
         modeBtn.classList.remove('bg-amber-500', 'hover:bg-amber-600', 'ring-4', 'ring-amber-500/40');
         modeBtn.classList.add('bg-emerald-500', 'hover:bg-emerald-600', 'text-slate-950');
@@ -558,6 +574,7 @@
       const servingTeamLabel = document.getElementById('serving-team-label');
       servingTeamLabel.innerText = `${isA ? teamAName : teamBName} サーブ`;
 
+      // カラー固定 (A: 水色 text-cyan-400, B: オレンジ text-amber-400)
       if (isA) {
         callDisplayEl.className = "text-lg sm:text-2xl font-black tracking-wider my-0.5 transition-colors text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.3)]";
         servingTeamLabel.className = "text-[11px] font-semibold transition-colors text-cyan-400";
@@ -610,7 +627,7 @@
       const activeA = (currentScoreA % 2 === 0) ? 2 : 1;
       const activeB = (currentScoreB % 2 === 0) ? 2 : 1;
 
-      // チームA
+      // チームA (水色固定)
       const pA1Box = document.getElementById('player-a1-box');
       const pA2Box = document.getElementById('player-a2-box');
       const pA1Badge = document.getElementById('player-a1-badge');
@@ -624,7 +641,7 @@
         (isA && activeA === 2 ? "border-cyan-400 bg-cyan-950/40 ring-2 ring-cyan-400/30" : "border-slate-800");
       pA2Badge.className = isA && activeA === 2 ? "text-[10px] px-1.5 py-0.5 rounded bg-cyan-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
 
-      // チームB
+      // チームB (オレンジ固定)
       const pB1Box = document.getElementById('player-b1-box');
       const pB2Box = document.getElementById('player-b2-box');
       const pB1Badge = document.getElementById('player-b1-badge');
@@ -643,7 +660,7 @@
       const cells = ['court-a-left', 'court-a-right', 'court-b-left', 'court-b-right'];
       cells.forEach(id => {
         const el = document.getElementById(id);
-        el.className = el.className.replace(/bg-.* text-.*/, '') + " text-[9px] text-slate-600";
+        el.className = el.className.replace(/bg-.* text-.*/, '') + " text-[9px] font-bold " + (id.startsWith('court-a') ? "text-cyan-500/60" : "text-amber-500/60");
         el.innerText = id.endsWith('left') ? 'L' : 'R';
       });
 
