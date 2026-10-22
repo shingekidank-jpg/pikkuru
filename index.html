@@ -125,7 +125,7 @@
       <!-- サービス状態メッセージ -->
       <div class="text-center flex-1 landscape:flex-none">
         <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold">コール</div>
-        <div id="call-display" class="text-lg sm:text-2xl font-black text-cyan-400 tracking-wider my-0.5 transition-colors">
+        <div id="call-display" class="text-lg sm:text-2xl font-black tracking-wider my-0.5 transition-colors text-cyan-400">
           0 - 0 - 2
         </div>
         <div id="serving-team-label" class="text-[11px] font-semibold transition-colors text-cyan-400">
@@ -133,19 +133,24 @@
         </div>
       </div>
 
-      <!-- コート表示 -->
-      <div id="court-diagram" class="w-28 h-16 sm:w-36 sm:h-20 bg-slate-950 border border-slate-700 rounded relative flex flex-col shrink-0 overflow-hidden my-auto">
-        <div class="absolute inset-x-0 top-1/2 h-0.5 bg-slate-400 z-10 -translate-y-1/2"></div>
-        <div class="absolute inset-x-0 top-[35%] bottom-[35%] bg-amber-500/10 border-y border-amber-500/30"></div>
+      <!-- コート表示 (縦画面: 上下配置 / 横画面: 左右配置) -->
+      <div id="court-diagram" class="w-28 h-16 sm:w-36 sm:h-20 landscape:w-36 landscape:h-20 bg-slate-950 border border-slate-700 rounded relative flex flex-col landscape:flex-row shrink-0 overflow-hidden my-auto">
+        <!-- ネット (縦画面: 横線 / 横画面: 縦線) -->
+        <div class="absolute inset-x-0 top-1/2 h-0.5 bg-slate-400 z-10 -translate-y-1/2 landscape:hidden"></div>
+        <div class="hidden landscape:block absolute inset-y-0 left-1/2 w-0.5 bg-slate-400 z-10 -translate-x-1/2"></div>
+
+        <!-- ノンボレーゾーン (キッチン) -->
+        <div class="absolute inset-x-0 top-[35%] bottom-[35%] bg-amber-500/10 border-y border-amber-500/30 landscape:hidden"></div>
+        <div class="hidden landscape:block absolute inset-y-0 left-[35%] right-[35%] bg-amber-500/10 border-x border-amber-500/30"></div>
         
-        <!-- 上コート (チーム A) -->
-        <div class="flex-1 grid grid-cols-2 border-b border-slate-800">
-          <div id="court-a-left" class="border-r border-slate-800/50 flex items-center justify-center text-[9px] text-slate-600">L</div>
+        <!-- 上 / 左コート (チーム A - 水色) -->
+        <div class="flex-1 grid grid-cols-2 landscape:grid-cols-1 landscape:grid-rows-2 border-b landscape:border-b-0 landscape:border-r border-slate-800">
+          <div id="court-a-left" class="border-r landscape:border-r-0 landscape:border-b border-slate-800/50 flex items-center justify-center text-[9px] text-slate-600">L</div>
           <div id="court-a-right" class="flex items-center justify-center text-[9px] text-slate-600">R</div>
         </div>
-        <!-- 下コート (チーム B) -->
-        <div class="flex-1 grid grid-cols-2">
-          <div id="court-b-left" class="border-r border-slate-800/50 flex items-center justify-center text-[9px] text-slate-600">L</div>
+        <!-- 下 / 右コート (チーム B - オレンジ) -->
+        <div class="flex-1 grid grid-cols-2 landscape:grid-cols-1 landscape:grid-rows-2">
+          <div id="court-b-left" class="border-r landscape:border-r-0 landscape:border-b border-slate-800/50 flex items-center justify-center text-[9px] text-slate-600">L</div>
           <div id="court-b-right" class="flex items-center justify-center text-[9px] text-slate-600">R</div>
         </div>
       </div>
@@ -330,10 +335,6 @@
       servingTeam: 'A',         // 'A' または 'B'
       serverNumber: 2,          // ダブルス開始時はルール上 "0-0-2"
       
-      // ダブルス時の各チーム内の打撃サーバー (1: 選手1, 2: 選手2)
-      activeServerA: 1,
-      activeServerB: 1,
-      
       timeoutsA: 2,
       timeoutsB: 2,
       
@@ -364,7 +365,7 @@
     function selectFirstServer(team) {
       saveStateToHistory();
       state.servingTeam = team;
-      state.serverNumber = state.isDoubles ? 2 : 1; // 試合最初のみ 0-0-2
+      state.serverNumber = state.isDoubles ? 2 : 1; // ゲーム初期のみ 0-0-2
       closeModal('start-server-modal');
       updateUI();
       speakCurrentCall("ゲームスタート");
@@ -378,21 +379,18 @@
       vibrate();
 
       if (state.servingTeam === team) {
-        // サーブ側が得点
+        // サーブ側が得点獲得
         if (team === 'A') {
           state.scoreA++;
-          // 得点ごとにチーム内の打撃サーバーを交替（左右コート入れ替え）
-          state.activeServerA = state.activeServerA === 1 ? 2 : 1;
         } else {
           state.scoreB++;
-          state.activeServerB = state.activeServerB === 1 ? 2 : 1;
         }
 
         speakCurrentCall();
         checkWinner();
       } else {
-        // レシーブ側勝利 -> サーブ交代/エラー処理
-        handleFaultInternal(team === 'A' ? 'B' : 'A');
+        // レシーブ側の+1ボタン（ラリー勝利） -> サーブ側のエラーとして処理（誤点数加算をブロック）
+        handleFaultInternal(state.servingTeam);
       }
 
       updateUI();
@@ -412,16 +410,11 @@
     function handleFaultInternal(faultingTeam) {
       if (state.isDoubles) {
         if (state.serverNumber === 1) {
-          // 1stサーバー失敗 -> 2ndサーバーへ
+          // 1st サーバー失敗 -> 2nd サーバーへ切り替え
           state.serverNumber = 2;
-          if (faultingTeam === 'A') {
-            state.activeServerA = state.activeServerA === 1 ? 2 : 1;
-          } else {
-            state.activeServerB = state.activeServerB === 1 ? 2 : 1;
-          }
           speakCurrentCall();
         } else {
-          // 2ndサーバー失敗 -> サイドアウト（相手チームへ）
+          // 2nd サーバー失敗 -> サイドアウト（相手チームの1stサーバーへ移行）
           state.servingTeam = faultingTeam === 'A' ? 'B' : 'A';
           state.serverNumber = 1;
           speakCurrentCall("サイドアウト");
@@ -489,8 +482,6 @@
       state.scoreB = 0;
       state.servingTeam = 'A';
       state.serverNumber = state.isDoubles ? 2 : 1;
-      state.activeServerA = 1;
-      state.activeServerB = 1;
       state.timeoutsA = 2;
       state.timeoutsB = 2;
       state.gameEnded = false;
@@ -558,7 +549,7 @@
       const servingTeamLabel = document.getElementById('serving-team-label');
       servingTeamLabel.innerText = `${isA ? teamAName : teamBName} サーブ`;
 
-      // サーブ権を持つチームの色（A: 水色 text-cyan-400, B: オレンジ text-amber-400）に切り替え
+      // コール欄の文字色切り替え
       if (isA) {
         callDisplayEl.className = "text-lg sm:text-2xl font-black tracking-wider my-0.5 transition-colors text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.3)]";
         servingTeamLabel.className = "text-[11px] font-semibold transition-colors text-cyan-400";
@@ -567,25 +558,27 @@
         servingTeamLabel.className = "text-[11px] font-semibold transition-colors text-amber-400";
       }
 
-      // サーバーバッジ表示
+      // 1st / 2nd サーバーバッジ表示の更新（コール欄一番右の数値と同期）
       const badgeA = document.getElementById('team-a-server-badge');
       const badgeB = document.getElementById('team-b-server-badge');
       const textA = document.getElementById('team-a-server-text');
       const textB = document.getElementById('team-b-server-text');
 
+      const serverSuffix = state.serverNumber === 1 ? "1st" : "2nd";
+
       if (isA) {
         badgeA.className = "mt-2 px-3 py-1 rounded-full text-xs font-bold bg-cyan-500 text-slate-950 border border-cyan-300 serving-active shadow-[0_0_12px_rgba(34,211,238,0.5)]";
-        textA.innerText = state.isDoubles ? `サーブ (${state.serverNumber}nd)` : "サーブ権あり";
+        textA.innerText = state.isDoubles ? `サーブ (${serverSuffix})` : "サーブ権あり";
         badgeB.className = "mt-2 px-3 py-1 rounded-full text-xs font-bold bg-slate-800/80 text-slate-500 border border-slate-700";
         textB.innerText = "レシーブ";
       } else {
         badgeB.className = "mt-2 px-3 py-1 rounded-full text-xs font-bold bg-amber-400 text-slate-950 border border-amber-200 serving-active shadow-[0_0_12px_rgba(251,191,36,0.5)]";
-        textB.innerText = state.isDoubles ? `サーブ (${state.serverNumber}nd)` : "サーブ権あり";
+        textB.innerText = state.isDoubles ? `サーブ (${serverSuffix})` : "サーブ権あり";
         badgeA.className = "mt-2 px-3 py-1 rounded-full text-xs font-bold bg-slate-800/80 text-slate-500 border border-slate-700";
         textA.innerText = "レシーブ";
       }
 
-      // ダブルス時の個人プレイヤー表示のハイライト更新
+      // ダブルス時のプレイヤーハイライト更新
       updatePlayerHighlights();
 
       updateCourtDiagram();
@@ -605,6 +598,9 @@
       containerB.classList.remove('hidden');
 
       const isA = state.servingTeam === 'A';
+      const currentScore = isA ? state.scoreA : state.scoreB;
+      // 得点が偶数=右(R/選手1)からサーブ、奇数=左(L/選手2)からサーブ
+      const activePlayer = (currentScore % 2 === 0) ? 1 : 2;
 
       // チームA
       const pA1Box = document.getElementById('player-a1-box');
@@ -613,12 +609,12 @@
       const pA2Badge = document.getElementById('player-a2-badge');
 
       pA1Box.className = "flex-1 p-1.5 rounded-lg border bg-slate-950/50 flex items-center justify-between transition-all " +
-        (isA && state.activeServerA === 1 ? "border-cyan-400 bg-cyan-950/40 ring-2 ring-cyan-400/30" : "border-slate-800");
-      pA1Badge.className = isA && state.activeServerA === 1 ? "text-[10px] px-1.5 py-0.5 rounded bg-cyan-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
+        (isA && activePlayer === 1 ? "border-cyan-400 bg-cyan-950/40 ring-2 ring-cyan-400/30" : "border-slate-800");
+      pA1Badge.className = isA && activePlayer === 1 ? "text-[10px] px-1.5 py-0.5 rounded bg-cyan-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
 
       pA2Box.className = "flex-1 p-1.5 rounded-lg border bg-slate-950/50 flex items-center justify-between transition-all " +
-        (isA && state.activeServerA === 2 ? "border-cyan-400 bg-cyan-950/40 ring-2 ring-cyan-400/30" : "border-slate-800");
-      pA2Badge.className = isA && state.activeServerA === 2 ? "text-[10px] px-1.5 py-0.5 rounded bg-cyan-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
+        (isA && activePlayer === 2 ? "border-cyan-400 bg-cyan-950/40 ring-2 ring-cyan-400/30" : "border-slate-800");
+      pA2Badge.className = isA && activePlayer === 2 ? "text-[10px] px-1.5 py-0.5 rounded bg-cyan-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
 
       // チームB
       const pB1Box = document.getElementById('player-b1-box');
@@ -627,12 +623,12 @@
       const pB2Badge = document.getElementById('player-b2-badge');
 
       pB1Box.className = "flex-1 p-1.5 rounded-lg border bg-slate-950/50 flex items-center justify-between transition-all " +
-        (!isA && state.activeServerB === 1 ? "border-amber-400 bg-amber-950/40 ring-2 ring-amber-400/30" : "border-slate-800");
-      pB1Badge.className = !isA && state.activeServerB === 1 ? "text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
+        (!isA && activePlayer === 1 ? "border-amber-400 bg-amber-950/40 ring-2 ring-amber-400/30" : "border-slate-800");
+      pB1Badge.className = !isA && activePlayer === 1 ? "text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
 
       pB2Box.className = "flex-1 p-1.5 rounded-lg border bg-slate-950/50 flex items-center justify-between transition-all " +
-        (!isA && state.activeServerB === 2 ? "border-amber-400 bg-amber-950/40 ring-2 ring-amber-400/30" : "border-slate-800");
-      pB2Badge.className = !isA && state.activeServerB === 2 ? "text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
+        (!isA && activePlayer === 2 ? "border-amber-400 bg-amber-950/40 ring-2 ring-amber-400/30" : "border-slate-800");
+      pB2Badge.className = !isA && activePlayer === 2 ? "text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold shrink-0 ml-1" : "hidden";
     }
 
     function updateCourtDiagram() {
