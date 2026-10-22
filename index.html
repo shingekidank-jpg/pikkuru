@@ -17,10 +17,12 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     }
     
-    /* スコア数字のスタイリング */
+    /* スコア数字：clamp()でモバイル画面に合わせて限界まで自動拡大 */
     .score-font {
       font-variant-numeric: tabular-nums;
       font-weight: 800;
+      font-size: clamp(5rem, 22vw, 16rem);
+      line-height: 1;
     }
 
     /* アニメーション */
@@ -96,7 +98,7 @@
 
       <!-- スコア表示部 -->
       <div class="flex-1 flex flex-col justify-center items-center my-1">
-        <div id="team-a-score" class="score-font text-6xl sm:text-7xl landscape:text-8xl text-cyan-400 leading-none drop-shadow-[0_0_15px_rgba(34,211,238,0.2)]">
+        <div id="team-a-score" class="score-font text-cyan-400 drop-shadow-[0_0_15px_rgba(34,211,238,0.2)]">
           0
         </div>
         <!-- サーバーバッジ -->
@@ -122,7 +124,7 @@
       <!-- サービス状態メッセージ -->
       <div class="text-center flex-1 landscape:flex-none">
         <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold">コール</div>
-        <div id="call-display" class="text-lg sm:text-2xl font-black tracking-wider my-0.5 transition-colors text-cyan-400">
+        <div id="call-display" class="text-base sm:text-xl font-black tracking-wider my-0.5 transition-colors text-cyan-400">
           0 - 0 - 2
         </div>
         <div id="serving-team-label" class="text-[11px] font-semibold transition-colors text-cyan-400">
@@ -130,7 +132,7 @@
         </div>
       </div>
 
-      <!-- コート表示 (水色: チームA / オレンジ: チームB) -->
+      <!-- コート表示 -->
       <div id="court-diagram" class="w-28 h-16 sm:w-36 sm:h-20 landscape:w-36 landscape:h-20 bg-slate-950 border border-slate-700 rounded relative flex flex-col landscape:flex-row shrink-0 overflow-hidden my-auto">
         <div class="absolute inset-x-0 top-1/2 h-0.5 bg-slate-400 z-10 -translate-y-1/2 landscape:hidden"></div>
         <div class="hidden landscape:block absolute inset-y-0 left-1/2 w-0.5 bg-slate-400 z-10 -translate-x-1/2"></div>
@@ -187,7 +189,7 @@
 
       <!-- スコア表示部 -->
       <div class="flex-1 flex flex-col justify-center items-center my-1">
-        <div id="team-b-score" class="score-font text-6xl sm:text-7xl landscape:text-8xl text-amber-400 leading-none drop-shadow-[0_0_15px_rgba(251,191,36,0.2)]">
+        <div id="team-b-score" class="score-font text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.2)]">
           0
         </div>
         <!-- サーバーバッジ -->
@@ -325,7 +327,6 @@
       serverNumber: 2,          // 試合開始最初の1点目のみ例外的に "2"
       isInitialFirstServer: true, // 最初のファーストサーバーフラグ
       
-      // 各チームのサーブを打っている選手 (1 or 2) : エラーが起きるまで連続得点中は固定
       activeServerA: 1,
       activeServerB: 1,
 
@@ -375,30 +376,39 @@
       saveStateToHistory();
       vibrate();
 
-      if (state.servingTeam === team) {
-        // サーブ側が得点獲得
-        if (team === 'A') {
-          state.scoreA++;
-        } else {
-          state.scoreB++;
-        }
+      if (state.isDoubles) {
+        if (state.servingTeam === team) {
+          // 1. サーブ側のチームがポイントを獲得した場合：得点が加算され、サーバー番号が更新される
+          if (team === 'A') {
+            state.scoreA++;
+          } else {
+            state.scoreB++;
+          }
 
-        if (state.isDoubles) {
           if (state.isInitialFirstServer) {
-            // 最初のファーストサーバーの得点：2のまま維持
             state.serverNumber = 2;
           } else {
-            // サイドアウト後の通常時：得点したら「2」へ自動切り替え（打つ選手は交代せず同じ人が打つ）
             if (state.serverNumber === 1) {
               state.serverNumber = 2;
             }
           }
+          checkWinner();
+        } else {
+          // 2. レシーブ側（サーブ権がないチーム）のボタンが押された場合：
+          // ピックルボールのルール上、レシーブ側が得点することはできないため、スコアは増やさず「サイドアウト（サーブ権移動）」にする
+          state.isInitialFirstServer = false;
+          state.servingTeam = team;
+          state.serverNumber = 1;
         }
-
-        checkWinner();
       } else {
-        // レシーブ側の+1ボタン -> サーブ側のエラーとして処理
-        handleFaultInternal(state.servingTeam);
+        // シングルス
+        if (state.servingTeam === team) {
+          if (team === 'A') state.scoreA++;
+          else state.scoreB++;
+          checkWinner();
+        } else {
+          state.servingTeam = team;
+        }
       }
 
       updateUI();
@@ -591,10 +601,10 @@
 
       // カラー固定 (チームA: 水色 text-cyan-400, チームB: オレンジ text-amber-400)
       if (isA) {
-        callDisplayEl.className = "text-lg sm:text-2xl font-black tracking-wider my-0.5 transition-colors text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.3)]";
+        callDisplayEl.className = "text-base sm:text-xl font-black tracking-wider my-0.5 transition-colors text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.3)]";
         servingTeamLabel.className = "text-[11px] font-semibold transition-colors text-cyan-400";
       } else {
-        callDisplayEl.className = "text-lg sm:text-2xl font-black tracking-wider my-0.5 transition-colors text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.3)]";
+        callDisplayEl.className = "text-base sm:text-xl font-black tracking-wider my-0.5 transition-colors text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.3)]";
         servingTeamLabel.className = "text-[11px] font-semibold transition-colors text-amber-400";
       }
 
